@@ -1,6 +1,7 @@
 package com.example.neerajmenon.flickrbrowser;
 
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.util.Log;
 
 import org.json.JSONArray;
@@ -14,7 +15,7 @@ import java.util.List;
  * Created by neeraj on 9/5/17.
  */
 
-class GetJsonFlickrData implements GetRawData.OnDownloadComplete {
+class GetJsonFlickrData extends AsyncTask<String,Void,List<Photo>>implements GetRawData.OnDownloadComplete {
     private static final String TAG = "GetJsonFlickrData";
 
     private List<Photo> mPhotoList = null;
@@ -22,6 +23,7 @@ class GetJsonFlickrData implements GetRawData.OnDownloadComplete {
     private String mLanguage;
     private boolean matchAll = true;
     private OnDataAvailable mCallback;
+    private boolean runningOnSameThread = false;
 
     interface OnDataAvailable{
         void OnDataAvailable(List<Photo> data, DownloadStatus status);
@@ -37,11 +39,34 @@ class GetJsonFlickrData implements GetRawData.OnDownloadComplete {
         this.matchAll = matchAll;
     }
     void executeOnSameThread(String searchCriteria){
+        // same thread execution
+        runningOnSameThread = true;
         String destinationUri = createUri(searchCriteria,mLanguage,matchAll);
         GetRawData getRawData = new GetRawData(this);
         getRawData.execute(destinationUri);
 
     }
+
+    @Override
+    protected void onPostExecute(List<Photo> photos) {
+        Log.d(TAG, "onPostExecute: starts");
+        if(mCallback != null)
+        {
+            mCallback.OnDataAvailable(mPhotoList,DownloadStatus.OK);
+        }
+        Log.d(TAG, "onPostExecute: ends");
+    }
+
+    @Override
+    protected List<Photo> doInBackground(String... params) {
+        //background thread execution
+        String destinationUri = createUri(params[0],mLanguage,matchAll);
+        GetRawData getRawData = new GetRawData(this);
+       // getRawData.execute(destinationUri); cannot call BG thread from BG thread
+        getRawData.runOnSameThread(destinationUri);
+        return mPhotoList; // once the onDownloadComplete below is done and completed (GRD in sync) list is returned to onPostExcecute
+    }
+
     String createUri(String searchCriteria, String mLanguage, boolean matchAll)
     {
         return Uri.parse(mBaseUrl).buildUpon()
@@ -58,7 +83,7 @@ class GetJsonFlickrData implements GetRawData.OnDownloadComplete {
         if(status == DownloadStatus.OK){
             Log.d(TAG, "OnDownloadComplete: Download Status: "+status);
             Log.d(TAG, "OnDownloadComplete: GOING TO START JSON PARSING NOW..");
-            //JSON DATA RETRIEVED, TIME TO PARSE INTO PHOTO LIST
+            //JSON DATA RETRIEVED, PARSING
             mPhotoList = new ArrayList<Photo>();
             try
             {
@@ -77,7 +102,7 @@ class GetJsonFlickrData implements GetRawData.OnDownloadComplete {
                     mPhotoList.add(photo);
                     Log.d(TAG, "OnDownloadComplete: ADDED PHOTO: " +photo.toString());
                 }
-                if(mCallback != null)
+                if(runningOnSameThread && mCallback != null)
                 {
                     mCallback.OnDataAvailable(mPhotoList,status);
                 }

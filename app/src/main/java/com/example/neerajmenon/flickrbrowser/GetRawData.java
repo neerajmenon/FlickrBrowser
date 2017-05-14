@@ -35,11 +35,25 @@ class GetRawData extends AsyncTask<String, Void, String> {
 
     @Override
     protected void onPostExecute(String s) {
-        Log.d(TAG, "onPostExecute: " +s);
+        //Log.d(TAG, "onPostExecute: " +s);
         if(mCallback !=null)
         {
             mCallback.OnDownloadComplete(s,mDownloadStatus);
         }
+        //deleted the super call here since it didnt really do anything anyway
+        Log.d(TAG, "onPostExecute: ends");
+    }
+    void runOnSameThread(String s)
+    {
+        //bypass the asynctask execution and run the methods in the same thread itself
+        Log.d(TAG, "runOnSameThread: start");
+        // onPostExecute(doInBackground(s)); //DANGEROUS since calling an override method with super reference manually
+        //solution is to bypass calling that and manually call OnDownloadComplete
+        if(mCallback!=null)
+        {
+            mCallback.OnDownloadComplete(doInBackground(s),mDownloadStatus);
+        }
+        Log.d(TAG, "runOnSameThread: ends");
     }
 
     @Override
